@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, HostListener, OnInit } from '@angular/core';
 import { SeoService } from '../../../services/seo.service';
+import { OpenGraphService } from '../../../services/opengraph.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { Acceleration, BlockExtended } from '../../../interfaces/node-api.interface';
 import { StateService } from '../../../services/state.service';
@@ -34,11 +35,13 @@ export class AcceleratorDashboardComponent implements OnInit {
 
   constructor(
     private seoService: SeoService,
+    private ogService: OpenGraphService,
     private websocketService: WebsocketService,
     private serviceApiServices: ServicesApiServices,
     private stateService: StateService,
   ) {
     this.seoService.setTitle($localize`:@@a681a4e2011bb28157689dbaa387de0dd0aa0c11:Accelerator Dashboard`);
+    this.ogService.setManualOgImage('accelerator.jpg');
   }
 
   ngOnInit(): void {
@@ -60,7 +63,7 @@ export class AcceleratorDashboardComponent implements OnInit {
     this.accelerations$ = this.stateService.chainTip$.pipe(
       distinctUntilChanged(),
       switchMap(() => {
-        return this.serviceApiServices.getAccelerationHistory$({ timeframe: '1m' }).pipe(
+        return this.serviceApiServices.getAccelerationHistory$({}).pipe(
           catchError(() => {
             return of([]);
           }),
@@ -71,7 +74,7 @@ export class AcceleratorDashboardComponent implements OnInit {
 
     this.minedAccelerations$ = this.accelerations$.pipe(
       map(accelerations => {
-        return accelerations.filter(acc => ['mined', 'completed', 'failed'].includes(acc.status));
+        return accelerations.filter(acc => ['completed_provisional', 'completed'].includes(acc.status));
       })
     );
 
@@ -100,7 +103,7 @@ export class AcceleratorDashboardComponent implements OnInit {
         }
         const accelerationsByBlock: { [ hash: string ]: Acceleration[] } = {};
         for (const acceleration of accelerations) {
-          if (['mined', 'completed'].includes(acceleration.status) && acceleration.pools.includes(blockMap[acceleration.blockHash]?.extras.pool.id)) {
+          if (['completed_provisional', 'failed_provisional', 'completed'].includes(acceleration.status) && acceleration.pools.includes(blockMap[acceleration.blockHash]?.extras.pool.id)) {
             if (!accelerationsByBlock[acceleration.blockHash]) {
               accelerationsByBlock[acceleration.blockHash] = [];
             }
@@ -128,11 +131,11 @@ export class AcceleratorDashboardComponent implements OnInit {
   @HostListener('window:resize', ['$event'])
   onResize(): void {
     if (window.innerWidth >= 992) {
-      this.graphHeight = 330;
+      this.graphHeight = 380;
     } else if (window.innerWidth >= 768) {
-      this.graphHeight = 245;
+      this.graphHeight = 300;
     } else {
-      this.graphHeight = 210;
+      this.graphHeight = 270;
     }
   }
 }

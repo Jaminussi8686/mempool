@@ -14,6 +14,7 @@ describe('Mempool Backend Config', () => {
 
       expect(config.MEMPOOL).toStrictEqual({
         ENABLED: true,
+        OFFICIAL: false,
         NETWORK: 'mainnet',
         BACKEND: 'none',
         BLOCKS_SUMMARIES_INDEXING: false,
@@ -93,7 +94,8 @@ describe('Mempool Backend Config', () => {
         USERNAME: 'mempool',
         PASSWORD: 'mempool',
         TIMEOUT: 180000,
-        PID_DIR: ''
+        PID_DIR: '',
+        POOL_SIZE: 100,
       });
 
       expect(config.SYSLOG).toStrictEqual({
@@ -149,6 +151,11 @@ describe('Mempool Backend Config', () => {
         ENABLED: false,
         UNIX_SOCKET_PATH: '',
         BATCH_QUERY_BASE_SIZE: 5000,
+      });
+
+      expect(config.FIAT_PRICE).toStrictEqual({
+        ENABLED: true,
+        API_KEY: '',
       });
     });
   });

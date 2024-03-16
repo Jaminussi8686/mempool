@@ -19,7 +19,7 @@ import { StateService } from '../../services/state.service';
 })
 export class LbtcPegsGraphComponent implements OnInit, OnChanges {
   @Input() data: any;
-  @Input() height: number | string = '320';
+  @Input() height: number | string = '360';
   pegsChartOptions: EChartsOption;
 
   right: number | string = '10';

@@ -32,6 +32,7 @@ export class WebsocketService {
   private isTrackingRbf: 'all' | 'fullRbf' | false = false;
   private isTrackingRbfSummary = false;
   private isTrackingAddress: string | false = false;
+  private isTrackingAddresses: string[] | false = false;
   private trackingMempoolBlock: number;
   private latestGitCommit = '';
   private onlineCheckTimeout: number;
@@ -119,7 +120,7 @@ export class WebsocketService {
             this.startMultiTrackTransaction(this.trackingTxId);
           }
           if (this.isTrackingMempoolBlock) {
-            this.startTrackMempoolBlock(this.trackingMempoolBlock);
+            this.startTrackMempoolBlock(this.trackingMempoolBlock, true);
           }
           if (this.isTrackingRbf) {
             this.startTrackRbf(this.isTrackingRbf);
@@ -129,6 +130,9 @@ export class WebsocketService {
           }
           if (this.isTrackingAddress) {
             this.startTrackAddress(this.isTrackingAddress);
+          }
+          if (this.isTrackingAddresses) {
+            this.startTrackAddresses(this.isTrackingAddresses);
           }
           this.stateService.connectionState$.next(2);
         }
@@ -179,6 +183,16 @@ export class WebsocketService {
     this.isTrackingAddress = false;
   }
 
+  startTrackAddresses(addresses: string[]) {
+    this.websocketSubject.next({ 'track-addresses': addresses });
+    this.isTrackingAddresses = addresses;
+  }
+
+  stopTrackingAddresses() {
+    this.websocketSubject.next({ 'track-addresses': [] });
+    this.isTrackingAddresses = false;
+  }
+
   startTrackAsset(asset: string) {
     this.websocketSubject.next({ 'track-asset': asset });
   }
@@ -187,9 +201,9 @@ export class WebsocketService {
     this.websocketSubject.next({ 'track-asset': 'stop' });
   }
 
-  startTrackMempoolBlock(block: number) {
+  startTrackMempoolBlock(block: number, force: boolean = false) {
     // skip duplicate tracking requests
-    if (this.trackingMempoolBlock !== block) {
+    if (force || this.trackingMempoolBlock !== block) {
       this.websocketSubject.next({ 'track-mempool-block': block });
       this.isTrackingMempoolBlock = true;
       this.trackingMempoolBlock = block;
@@ -321,8 +335,8 @@ export class WebsocketService {
       this.stateService.rbfLatest$.next(response.rbfLatest);
     }
 
-    if (response.rbfLatestSummary) {
-      this.stateService.rbfLatestSummary$.next(response.rbfLatestSummary);
+    if (response.rbfLatestSummary !== undefined) {
+      this.stateService.rbfLatestSummary$.next(response.rbfLatestSummary || []);
     }
 
     if (response.txReplaced) {
@@ -334,7 +348,7 @@ export class WebsocketService {
     }
 
     if (response.transactions) {
-      response.transactions.forEach((tx) => this.stateService.transactions$.next(tx));
+      this.stateService.transactions$.next(response.transactions.slice(0, 6));
     }
 
     if (response['bsq-price']) {
@@ -379,6 +393,10 @@ export class WebsocketService {
       });
     }
 
+    if (response['multi-address-transactions']) {
+      this.stateService.multiAddressTransactions$.next(response['multi-address-transactions']);
+    }
+
     if (response['block-transactions']) {
       response['block-transactions'].forEach((addressTransaction: Transaction) => {
         this.stateService.blockTransactions$.next(addressTransaction);
@@ -418,6 +436,10 @@ export class WebsocketService {
 
     if (response.previousRetarget !== undefined) {
       this.stateService.previousRetarget$.next(response.previousRetarget);
+    }
+
+    if (response['tomahawk']) {
+      this.stateService.serverHealth$.next(response['tomahawk']);
     }
 
     if (response['git-commit']) {

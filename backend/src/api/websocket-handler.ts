@@ -24,6 +24,8 @@ import { ApiPrice } from '../repositories/PricesRepository';
 import accelerationApi from './services/acceleration';
 import mempool from './mempool';
 import statistics from './statistics/statistics';
+import accelerationRepository from '../repositories/AccelerationRepository';
+import bitcoinApi from './bitcoin/bitcoin-api-factory';
 
 interface AddressTransactions {
   mempool: MempoolTransactionExtended[],
@@ -37,6 +39,7 @@ const wantable = [
   'mempool-blocks',
   'live-2h-chart',
   'stats',
+  'tomahawk',
 ];
 
 class WebsocketHandler {
@@ -49,7 +52,7 @@ class WebsocketHandler {
 
   private socketData: { [key: string]: string } = {};
   private serializedInitData: string = '{}';
-  private lastRbfSummary: ReplacementInfo | null = null;
+  private lastRbfSummary: ReplacementInfo[] | null = null;
 
   constructor() { }
 
@@ -121,7 +124,7 @@ class WebsocketHandler {
             for (const sub of wantable) {
               const key = `want-${sub}`;
               const wants = parsedMessage.data.includes(sub);
-              if (wants && client['wants'] && !client[key]) {
+              if (wants && !client[key]) {
                 wantNow[key] = true;
               }
               client[key] = wants;
@@ -143,6 +146,10 @@ class WebsocketHandler {
             response['vBytesPerSecond'] = this.socketData['vBytesPerSecond'];
             response['fees'] = this.socketData['fees'];
             response['da'] = this.socketData['da'];
+          }
+
+          if (wantNow['want-tomahawk']) {
+            response['tomahawk'] = JSON.stringify(bitcoinApi.getHealthStatus());
           }
 
           if (parsedMessage && parsedMessage['track-tx']) {
@@ -457,10 +464,11 @@ class WebsocketHandler {
     let rbfReplacements;
     let fullRbfReplacements;
     let rbfSummary;
-    if (Object.keys(rbfChanges.trees).length) {
+    if (Object.keys(rbfChanges.trees).length || !this.lastRbfSummary) {
       rbfReplacements = rbfCache.getRbfTrees(false);
       fullRbfReplacements = rbfCache.getRbfTrees(true);
-      rbfSummary = rbfCache.getLatestRbfSummary();
+      rbfSummary = rbfCache.getLatestRbfSummary() || [];
+      this.lastRbfSummary = rbfSummary;
     }
 
     for (const deletedTx of deletedTransactions) {
@@ -542,6 +550,10 @@ class WebsocketHandler {
 
       if (client['want-mempool-blocks']) {
         response['mempool-blocks'] = getCachedResponse('mempool-blocks', mBlocks);
+      }
+
+      if (client['want-tomahawk']) {
+        response['tomahawk'] = getCachedResponse('tomahawk', bitcoinApi.getHealthStatus());
       }
 
       if (client['track-mempool-tx']) {
@@ -728,6 +740,11 @@ class WebsocketHandler {
 
     const _memPool = memPool.getMempool();
 
+    const isAccelerated = config.MEMPOOL_SERVICES.ACCELERATIONS && accelerationApi.isAcceleratedBlock(block, Object.values(mempool.getAccelerations()));
+
+    const accelerations = Object.values(mempool.getAccelerations());
+    await accelerationRepository.$indexAccelerationsForBlock(block, accelerations, transactions);
+
     const rbfTransactions = Common.findMinedRbfTransactions(transactions, memPool.getSpendMap());
     memPool.handleMinedRbfTransactions(rbfTransactions);
     memPool.removeFromSpendMap(transactions);
@@ -735,7 +752,6 @@ class WebsocketHandler {
     if (config.MEMPOOL.AUDIT && memPool.isInSync()) {
       let projectedBlocks;
       let auditMempool = _memPool;
-      const isAccelerated = config.MEMPOOL_SERVICES.ACCELERATIONS && accelerationApi.isAcceleratedBlock(block, Object.values(mempool.getAccelerations()));
       // template calculation functions have mempool side effects, so calculate audits using
       // a cloned copy of the mempool if we're running a different algorithm for mempool updates
       const separateAudit = config.MEMPOOL.ADVANCED_GBT_AUDIT !== config.MEMPOOL.ADVANCED_GBT_MEMPOOL;
@@ -884,6 +900,10 @@ class WebsocketHandler {
 
       if (mBlocks && client['want-mempool-blocks']) {
         response['mempool-blocks'] = getCachedResponse('mempool-blocks', mBlocks);
+      }
+
+      if (client['want-tomahawk']) {
+        response['tomahawk'] = getCachedResponse('tomahawk', bitcoinApi.getHealthStatus());
       }
 
       if (client['track-tx']) {
